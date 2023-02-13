@@ -6,11 +6,13 @@ using Telegram.Bot.Types;
 
 using Telegram.Bot.Types.ReplyMarkups;
 using File = System.IO.File;
+using ShikimoriSharp.Classes;
 
 namespace TgShikimoriBot
 {
     public class Program
     {
+        const string domain = "https://shikimori.one";
         const string TokenFileName = "Token.txt";
         static CancellationTokenSource cts = new();
 
@@ -49,15 +51,26 @@ namespace TgShikimoriBot
             {
                 AllowedUpdates = new[] { UpdateType.Message, UpdateType.CallbackQuery } // receive all update types
             };
-            botClient.StartReceiving(
-              updateHandler: HandleUpdateAsync,
-              pollingErrorHandler: HandlePollingErrorAsync,
-              receiverOptions: receiverOptions,
-              cancellationToken: cts.Token);
-            var me = await botClient.GetMeAsync();
+            try
+            {
+                botClient.StartReceiving(
+                  updateHandler: HandleUpdateAsync,
+                  pollingErrorHandler: HandlePollingErrorAsync,
+                  receiverOptions: receiverOptions,
+                  cancellationToken: cts.Token);
+                var me = await botClient.GetMeAsync();
 
-            Console.WriteLine($"Start listening for @{me.Username}");
-            Console.ReadLine();
+
+                Console.WriteLine($"Start listening for @{me.Username}");
+                Console.ReadLine();
+            }
+            catch(Exception ex)
+            {
+                Console.WriteLine("Ошибка инициализации бота, проверьте правильность токена");
+                File.Delete(TokenFileName);
+                
+            }
+
 
             // Send cancellation request to stop bot
             cts.Cancel();
@@ -93,21 +106,66 @@ namespace TgShikimoriBot
 
             try
             {
+              
                 switch (cmdArgs[0])
                 {
 
                     case "/randomanime":
                         {
-                            await botClient.SendTextMessageAsync(chatId, await GetRandomAnime());
+
+                            var anime = await GetRandomAnime();
+                            await botClient.SendTextMessageAsync(chatId, anime.Item2, 
+                                replyMarkup: new InlineKeyboardMarkup(InlineKeyboardButton.WithCallbackData("Подробнее", $"/anime {anime.Item1}")));
+                            
                             break;
                         }
                     case "/randommanga":
                         {
-                            await botClient.SendTextMessageAsync(chatId, await GetRandomManga());
+                            var manga = await GetRandomManga();
+                            await botClient.SendTextMessageAsync(chatId, manga.Item2, 
+                                replyMarkup: new InlineKeyboardMarkup(InlineKeyboardButton.WithCallbackData("Подробнее", $"/manga {manga.Item1}")));
+                            break;
+                        }
+                    case "/manga":
+                        {
+                            break;
+                        }
+                    case "/anime":
+                        {
+                            bool ok = false;
+                            if (cmdArgs.Length > 1)
+                            {
+
+                                if (long.TryParse(cmdArgs[1], out long id))
+                                {
+                                    var info = await GetAnimeInfo(id);
+
+                                    await botClient.SendTextMessageAsync(chatId, info.Item1);
+
+                                    if (info.Item2 != null && info.Item2.Count > 0)
+                                    {
+                                        await botClient.SendTextMessageAsync(chatId, "Отправка скриншотов");
+
+                                        var photos = info.Item2?.Select(uri => new InputMediaPhoto(uri));
+
+                                        if (photos != null && photos.Count() > 0)
+                                        {
+                                            await botClient.SendMediaGroupAsync(chatId, photos);
+                                        }
+
+                                    }
+                                    ok = true;
+                                }
+                              
+                            }
+                           if(ok == false)
+                                await botClient.SendTextMessageAsync(chatId, "Введите числовой ID аниме");
+                            
                             break;
                         }
                 }
-                await botClient.SendTextMessageAsync(chatId,"Выберите действие", parseMode:ParseMode.MarkdownV2, replyMarkup: Mainkeyboard);
+                await botClient.SendTextMessageAsync(chatId, "Выберите действие", parseMode: ParseMode.MarkdownV2, replyMarkup: Mainkeyboard);
+
             }
             catch(Exception ex)
             {
@@ -128,10 +186,42 @@ namespace TgShikimoriBot
             Console.WriteLine(ErrorMessage);
             return Task.CompletedTask;
         }
-        
-        public static async Task<string> GetRandomManga()
+        public static async Task<(string, List<string>?)> GetAnimeInfo(long id)
         {
-            return await Task.Run<string>(async () =>
+            return await Task.Run(async () =>
+            {
+                try
+                {
+                    var anime = await ShikimoriApiHandler.ApiClient.Animes.GetAnime(id);
+                    var text = $"Подробности об аниме: \n{anime.Name} {anime.Russian} (id: {anime.Id})\n" +
+                        $"Дата выхода:{anime?.AiredOn?.ToString("d")}\n" +
+                        $"Статус:{anime.Status}\n" +
+                        $"Тип:{anime.Kind}\n" +
+                        $"Оценка:{anime.Score}\n" +
+                        $"Оценка пользователей {anime.UserRate?.Text??"Неизвестно"}\n" +
+                        $"Эпизоды:{anime.Episodes}/{anime.EpisodesAired}\n" +
+                        $"Продолжительность:{anime.Duration}\n" +
+                        $"Описание:{anime?.Description??"Неизвестно"}\n";
+
+                    List<string> screens = new List<string>();
+                    foreach(var item in anime.Screens) 
+                    {
+                        screens.Add($"{domain}{item.Original}");
+                    }
+                    return (text, screens);
+                    
+                       
+                }
+                catch(Exception ex)
+                {
+                    return ("Произошла проблема при получении информации об аниме",null);
+                }
+               
+            });
+        }
+        public static async Task<(long?, string)> GetRandomManga()
+        {
+            return await Task.Run < (long?,string) > (async () =>
             {
                 try
                 {
@@ -143,29 +233,30 @@ namespace TgShikimoriBot
                     if (mangaArray.Length > 0)
                     {
                         var manga = mangaArray.First();
-                        return $"Случайная  манга\n\n" +
-                        $"{manga.Name} ({manga.Russian})\n" +
+                        var str = $"Случайная  манга\n\n" +
+                        $"{manga.Name} {manga.Russian} (id: {manga.Id})\n" +
                         $"Дата выхода:{manga?.AiredOn?.ToString("d")}\n" +
                         $"Статус:{manga.Status}\n" +
                         $"Тип:{manga.Kind}\n" +
                         $"Оценка:{manga.Score}\n" +
                         $"Тома:{manga.Chapters}\n" +
                         $"Главы:{manga.Chapters}\n" +
-                        $"Подробнее: https://shikimori.one{manga.Url}";
+                        $"Подробнее: {domain}{manga.Url}";
+                        return (manga.Id, str);
 
                     }
-                    else return "Список манги пуст";
+                    else return (-1,"Список манги пуст");
                 }
                 catch(Exception ex)
                 {
-                    return "Произошла проблема при получении манги";
+                    return (-1,"Произошла проблема при получении манги");
                 }
             });
         }
-        public static async Task<string> GetRandomAnime()
+        public static async Task<(long?, string)>  GetRandomAnime()
         {
            
-            return await Task.Run<string>(async () =>
+            return await Task.Run<(long?, string)>(async () =>
             {
                 try
                 {
@@ -181,23 +272,23 @@ namespace TgShikimoriBot
                         
                         var anime = animeArray.First();
                         
-                        return $"Случайное аниме\n\n" +
-                        $"{anime.Name} ({anime.Russian})\n" +
+                        return (anime.Id,$"Случайное аниме\n\n" +
+                        $"{anime.Name} {anime.Russian} (id: {anime.Id})\n" +
                         $"Дата выхода:{anime?.AiredOn?.ToString("d")}\n" +
                         $"Статус:{anime.Status}\n" +
                         $"Тип:{anime.Kind}\n" +
                         $"Оценка:{anime.Score}\n" +
                         $"Эпизоды:{anime.Episodes}/{anime.EpisodesAired}\n" +
-                        $"Подробнее: https://shikimori.one{anime.Url}"; 
+                        $"Подробнее:{domain}{anime.Url}"); 
                         
 
                     }
                     else 
-                        return "Список аниме пуст";
+                        return (-1,"Список аниме пуст");
                 }
                 catch(Exception)
                 {
-                   return "Произошла проблема при получении  аниме";
+                   return (-1, "Произошла проблема при получении  аниме");
                 }
                
             });
