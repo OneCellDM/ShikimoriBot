@@ -7,6 +7,9 @@ using Telegram.Bot.Types;
 using Telegram.Bot.Types.ReplyMarkups;
 using File = System.IO.File;
 using ShikimoriSharp.Classes;
+using ShikimoriSharp.Information;
+using System.Xml.Linq;
+using System;
 
 namespace TgShikimoriBot
 {
@@ -128,6 +131,24 @@ namespace TgShikimoriBot
                         }
                     case "/manga":
                         {
+                            bool ok = false;
+                            if(cmdArgs.Length > 1)
+                            {
+                                if (long.TryParse(cmdArgs[1], out long id))
+                                {
+                                    var manga = await GetMangaInfo(id);
+
+                                    if (manga.poster != null) {
+                                        await botClient.SendPhotoAsync(chatId,caption:manga.text, photo:manga.poster);
+                                    }
+                                    else await botClient.SendTextMessageAsync(chatId, manga.text);
+
+                                    ok = true;
+                                }
+
+                            }
+                            if(ok == false)
+                                await botClient.SendTextMessageAsync(chatId, "Введите числовой ID манги на сайте");
                             break;
                         }
                     case "/anime":
@@ -144,14 +165,14 @@ namespace TgShikimoriBot
 
                                     if (info.Item2 != null && info.Item2.Count > 0)
                                     {
-                                        await botClient.SendTextMessageAsync(chatId, "Отправка скриншотов");
-
+                                      
                                         var photos = info.Item2?.Select(uri => new InputMediaPhoto(uri));
-
                                         if (photos != null && photos.Count() > 0)
                                         {
+                                            await botClient.SendTextMessageAsync(chatId, "Отправка скриншотов");
                                             await botClient.SendMediaGroupAsync(chatId, photos);
                                         }
+                                        
 
                                     }
                                     ok = true;
@@ -159,7 +180,7 @@ namespace TgShikimoriBot
                               
                             }
                            if(ok == false)
-                                await botClient.SendTextMessageAsync(chatId, "Введите числовой ID аниме");
+                                await botClient.SendTextMessageAsync(chatId, "Введите числовой ID аниме на сайте");
                             
                             break;
                         }
@@ -186,6 +207,40 @@ namespace TgShikimoriBot
             Console.WriteLine(ErrorMessage);
             return Task.CompletedTask;
         }
+        public static async Task<(string text, string? poster)> GetMangaInfo(long id)
+        {
+            try
+            {
+                var manga = await ShikimoriApiHandler.ApiClient.Mangas.GetById(id);
+
+                var genres = manga.Genres.Aggregate("", (cur, next) => cur + ", " + next.Russian);
+
+                var publishes = manga.Publishers?.Aggregate("", (current, next) => current + ", " + next.Name);
+
+                var text = $"Подробности о манге: \n{manga.Name} {manga.Russian} (id: {manga.Id})\n" +
+                        $"Дата выхода:{manga?.AiredOn?.ToString("d")}\n" +
+                        $"Статус:{manga.Status}\n" +
+                        $"Тип:{manga.Kind}\n" +
+                        $"Жанры: {genres ?? "Неизвестно"}\n" +
+                        $"Оценка:{manga.Score}\n" +                     
+                        $"Главы:{manga.Chapters}\n" +
+                        $"Тома:{manga.Volumes}\n" +
+                        $"Издатели: {publishes??"Неизвестно"}\n"+
+                        $"Подробнее: {domain}{manga.Url}" ;
+
+                string? poster = null;
+                if (string.IsNullOrEmpty(manga.Image?.Original) == false)
+                {
+                    poster = $"{domain}{manga.Image.Original}";
+                }
+                return (text, poster);
+                
+            }
+            catch(Exception ex) 
+            {
+                return ("Произошла ошибка при получении информации о манге",null);
+            }
+        }
         public static async Task<(string, List<string>?)> GetAnimeInfo(long id)
         {
             return await Task.Run(async () =>
@@ -193,15 +248,18 @@ namespace TgShikimoriBot
                 try
                 {
                     var anime = await ShikimoriApiHandler.ApiClient.Animes.GetAnime(id);
+
+                    var genres = anime.Genres.Aggregate("", (cur, next) => cur + ", " + next.Russian);
                     var text = $"Подробности об аниме: \n{anime.Name} {anime.Russian} (id: {anime.Id})\n" +
-                        $"Дата выхода:{anime?.AiredOn?.ToString("d")}\n" +
-                        $"Статус:{anime.Status}\n" +
-                        $"Тип:{anime.Kind}\n" +
-                        $"Оценка:{anime.Score}\n" +
-                        $"Оценка пользователей {anime.UserRate?.Text??"Неизвестно"}\n" +
-                        $"Эпизоды:{anime.Episodes}/{anime.EpisodesAired}\n" +
-                        $"Продолжительность:{anime.Duration}\n" +
-                        $"Описание:{anime?.Description??"Неизвестно"}\n";
+                        $"Дата выхода: {anime?.AiredOn?.ToString("d")}\n" +
+                        $"Статус: {anime.Status}\n" +
+                        $"Тип: {anime.Kind}\n" +
+                        $"Жанры: {genres??"Неизвестно"}\n" +
+                        $"Оценка: {anime.Score}\n" +
+                        $"Рейтинг: {anime.Rating??"Неизвестно"}\n" +
+                        $"Эпизоды: {anime.EpisodesAired}/{anime.Episodes}\n" +
+                        $"Продолжительность: {anime.Duration}\n" +
+                        $"Описание: {anime?.Description??"Неизвестно"}\n";
 
                     List<string> screens = new List<string>();
                     foreach(var item in anime.Screens) 
@@ -233,14 +291,15 @@ namespace TgShikimoriBot
                     if (mangaArray.Length > 0)
                     {
                         var manga = mangaArray.First();
+                        
                         var str = $"Случайная  манга\n\n" +
                         $"{manga.Name} {manga.Russian} (id: {manga.Id})\n" +
                         $"Дата выхода:{manga?.AiredOn?.ToString("d")}\n" +
                         $"Статус:{manga.Status}\n" +
                         $"Тип:{manga.Kind}\n" +
                         $"Оценка:{manga.Score}\n" +
-                        $"Тома:{manga.Chapters}\n" +
                         $"Главы:{manga.Chapters}\n" +
+                        $"Тома:{manga.Volumes}\n" +
                         $"Подробнее: {domain}{manga.Url}";
                         return (manga.Id, str);
 
@@ -278,7 +337,7 @@ namespace TgShikimoriBot
                         $"Статус:{anime.Status}\n" +
                         $"Тип:{anime.Kind}\n" +
                         $"Оценка:{anime.Score}\n" +
-                        $"Эпизоды:{anime.Episodes}/{anime.EpisodesAired}\n" +
+                        $"Эпизоды:{anime.EpisodesAired}/{anime.Episodes}\n" +
                         $"Подробнее:{domain}{anime.Url}"); 
                         
 
