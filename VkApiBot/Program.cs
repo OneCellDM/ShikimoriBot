@@ -245,53 +245,59 @@ public class Program
                 {
                     while (LpStart) // Бесконечный цикл, получение обновлений
                     {
-                        var s = BotApi.Groups.GetLongPollServer(PubId);
-                        var poll = BotApi.Groups.GetBotsLongPollHistory(
-                           new BotsLongPollHistoryParams()
-                           { Server = s.Server, Ts = s.Ts, Key = s.Key, Wait = 25 });
-
-                        if (poll?.Updates == null) continue;
-
-                        foreach (var a in poll.Updates)
+                        try
                         {
-                            if (a != null)
+                            var s = BotApi.Groups.GetLongPollServer(PubId);
+                            var poll = BotApi.Groups.GetBotsLongPollHistory(
+                               new BotsLongPollHistoryParams()
+                               { Server = s.Server, Ts = s.Ts, Key = s.Key, Wait = 25 });
+
+                            if (poll?.Updates == null) continue;
+
+                            foreach (var a in poll.Updates)
                             {
-                               
-                                if (a.Type == GroupUpdateType.MessageNew)
+                                if (a != null)
                                 {
-                                    string? message = null;
-                                    long? userID = null;
-                                    var msgNew = a.MessageNew?.Message;
 
-                                    if (msgNew != null)
+                                    if (a.Type == GroupUpdateType.MessageNew)
                                     {
-                                        userID = msgNew.PeerId;
-                                        if (string.IsNullOrEmpty(msgNew.Payload))
+                                        string? message = null;
+                                        long? userID = null;
+                                        var msgNew = a.MessageNew?.Message;
+
+                                        if (msgNew != null)
                                         {
-                                            message = msgNew.Text;
-                                            
+                                            userID = msgNew.PeerId;
+                                            if (string.IsNullOrEmpty(msgNew.Payload))
+                                            {
+                                                message = msgNew.Text;
+
+                                            }
+                                            else
+                                            {
+                                                message = msgNew.Payload.Split(":").Last();
+                                                var start = message.IndexOf("/");
+                                                var end = message.IndexOf('"', start);
+                                                message = message.Substring(start, end - start);
+
+
+                                            }
                                         }
-                                        else
+
+                                        if (string.IsNullOrEmpty(message) || userID == null)
                                         {
-                                            message = msgNew.Payload.Split(":").Last();
-                                            var start = message.IndexOf("/");
-                                            var end = message.IndexOf('"',start);
-                                            message = message.Substring(start, end - start);
-                                            
-                                            
+                                            continue;
                                         }
+
+                                        MessageLongPollEvent?.Invoke(userID, message);
+
+
                                     }
-
-                                    if (string.IsNullOrEmpty(message) || userID == null)
-                                    {
-                                        continue;
-                                    }
-
-                                    MessageLongPollEvent?.Invoke(userID, message);
-
-
                                 }
                             }
+                        }
+                        catch(Exception ex) {
+                            Console.WriteLine("Error: " + ex.Message);
                         }
                     }
                 });
