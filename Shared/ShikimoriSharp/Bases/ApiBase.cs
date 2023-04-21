@@ -31,7 +31,7 @@ namespace BotShared.ShikimoriSharp.Bases
         }
 
         public Enums.Version Version { get; }
-        private string Site => $"https://shikimori.one/api/{GetThing()}";
+        private string Site => $"https://shikimori.me/api/{GetThing()}";
 
         private string GetThing()
         {

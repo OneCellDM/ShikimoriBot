@@ -222,6 +222,8 @@ public class Program
                 .SetInline(true)
                 .AddButton(BotConstans.RandomManga.Title, BotConstans.RandomManga.Command)
                 .SetInline(true)
+                .AddButton(BotConstans.Help.Title, BotConstans.Help.Command)
+                .SetInline(true)
                 .Build();
            
            
@@ -279,8 +281,6 @@ public class Program
                                                 var start = message.IndexOf("/");
                                                 var end = message.IndexOf('"', start);
                                                 message = message.Substring(start, end - start);
-
-
                                             }
                                         }
 
@@ -316,6 +316,12 @@ public class Program
             return true;
         }
 
-      
+        public async Task SendHelpMessageAsync(long chatId)
+        {
+            var text = BotConstans.GetCommandsString();
+            await SendMessage(chatId, text);
+
+
+        }
     }
 }

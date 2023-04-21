@@ -18,6 +18,7 @@ namespace BotShared
         public Task SendAnimeDetailAsync(long chatId, long animeId);
         public Task SendMangaDetailAsync(long chatId, long mangaId);
         public Task SendDefaultMessageAsync(long chatId);
+        public Task SendHelpMessageAsync(long chatId);
     }
     public interface IBot<T> : IBot
         where T : class

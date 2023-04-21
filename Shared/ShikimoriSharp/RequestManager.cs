@@ -76,6 +76,7 @@ namespace BotShared.ShikimoriSharp
             if (!response.IsSuccessStatusCode)
                 throw new Exception($"Unsuccessful request: {response.StatusCode} | {response.ReasonPhrase}");
 
+            var content = response.Content;
             return await response.Content.ReadAsStringAsync();
         }
 

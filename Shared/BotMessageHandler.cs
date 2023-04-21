@@ -35,6 +35,7 @@ namespace BotShared
             try
             {
 
+
                 switch (cmdArgs[0])
                 {
 
@@ -82,10 +83,21 @@ namespace BotShared
 
                             break;
                         }
+                    case "/help":
+                        {
+                            await Bot.SendHelpMessageAsync(_chatId);
+                            break;
+                        }
+
                   
 
                 }
-                await Bot.SendDefaultMessageAsync(_chatId);
+
+                if (cmdArgs[0].Length > 1 && cmdArgs[0].StartsWith("/"))
+                {
+                    await Bot.SendDefaultMessageAsync(_chatId);
+                }
+                else return;
 
 
             }

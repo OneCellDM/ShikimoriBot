@@ -111,6 +111,7 @@ namespace TgShikimoriBot
                 {
                     InlineKeyboardButton.WithCallbackData(BotConstans.RandomAnime.Title, BotConstans.RandomAnime.Command),
                     InlineKeyboardButton.WithCallbackData(BotConstans.RandomManga.Title, BotConstans.RandomManga.Command),
+                    InlineKeyboardButton.WithCallbackData(BotConstans.Help.Title, BotConstans.Help.Command),
                 });
 
                 await BotApi.SendTextMessageAsync(chatId,BotConstans.InputAction,replyMarkup:inlineKeyboardButtons);
@@ -200,7 +201,11 @@ namespace TgShikimoriBot
                 return Task.CompletedTask;
             }
 
-           
+            public async Task SendHelpMessageAsync(long chatId)
+            {
+                var text = BotConstans.GetCommandsString();
+                await BotApi.SendTextMessageAsync(chatId, text);
+            }
         }
 
     }
